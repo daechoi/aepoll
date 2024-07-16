@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     let addr = "localhost:8080";
 
     for i in 0..n_events {
-        let delay = (n_events - i) * 1000;
+        let delay = (n_events - i) * 2000;
         let url_path = format!("/{delay}/request-{i}");
         let request = get_req(&url_path);
         let mut stream = TcpStream::connect(addr)?;
@@ -28,6 +28,7 @@ fn main() -> Result<()> {
         streams.push(stream);
     }
 
+    println!("Sent all events!");
     let mut handled_events: usize = 0;
     while handled_events < n_events {
         let mut events = Vec::with_capacity(10);
@@ -46,9 +47,9 @@ fn main() -> Result<()> {
 
 fn get_req(path: &str) -> Vec<u8> {
     format!(
-        "GET {path} HTTP/1.1\r\n
-        Host: localhost\r\n 
-        Connection: close\r\n"
+        "GET {path} HTTP/1.1\r\n\
+        Host: localhost\r\n\
+        Connection: close\r\n\r\n"
     )
     .into_bytes()
 }
