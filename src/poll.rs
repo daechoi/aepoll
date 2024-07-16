@@ -2,6 +2,8 @@
 
 use crate::ffi;
 use std::io::{self, Result};
+use std::net::TcpStream;
+use std::os::unix::io::AsRawFd;
 
 type Events = Vec<ffi::Event>;
 
@@ -28,6 +30,7 @@ impl Poll {
     pub fn poll(&mut self, events: &mut Events, timeout: Option<i32>) -> Result<()> {
         let fd = self.registry.raw_fd;
         let timeout = timeout.unwrap_or(-1);
+        // actual allocated rather than len
         let max_events = events.capacity() as i32;
         let res = unsafe { ffi::epoll_wait(fd, events.as_mut_ptr(), max_events, timeout) };
         if res < 0 {
@@ -35,6 +38,7 @@ impl Poll {
         };
 
         unsafe {
+            // os guarantees that number of events it returns is pointint to the valid data
             events.set_len(res as usize);
         };
         Ok(())
@@ -46,13 +50,29 @@ pub struct Registry {
 }
 
 impl Registry {
-    pub fn register(&self, fd: i32, token: i32, interests: i32) -> Result<()> {
-        todo!("implement Registry::register")
+    pub fn register(&self, source: &TcpStream, token: usize, interests: i32) -> Result<()> {
+        let mut event = ffi::Event {
+            events: interests as u32,
+            epoll_data: token as usize,
+        };
+
+        let op = ffi::EPOLL_CTL_ADD; // only interested in file system read
+        let res = unsafe { ffi::epoll_ctl(self.raw_fd, op, source.as_raw_fd(), &mut event) };
+
+        if res < 0 {
+            return Err(io::Error::last_os_error());
+        };
+
+        Ok(())
     }
 }
 
 impl Drop for Registry {
     fn drop(&mut self) {
-        todo!("implement Drop for Registry")
+        let res = unsafe { ffi::close(self.raw_fd) };
+        if res < 0 {
+            let err = io::Error::last_os_error();
+            eprintln!("ERROR: {err:?})");
+        }
     }
 }
